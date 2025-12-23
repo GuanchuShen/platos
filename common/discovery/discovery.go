@@ -1,0 +1,70 @@
+package discovery
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/bytedance/gopkg/util/logger"
+	"go.etcd.io/etcd/api/v3/mvccpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
+)
+
+// ServiceDiscovery 服务发现
+type ServiceDiscovery struct {
+	cli  *clientv3.Client
+	lock sync.Mutex
+	ctx  *context.Context
+}
+
+// NewServiceDiscovery 创建服务发现
+func NewServiceDiscovery(ctx *context.Context, endpoints []string) *ServiceDiscovery {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		logger.Fatal(err)
+	}
+	return &ServiceDiscovery{
+		cli: cli,
+		ctx: ctx,
+	}
+}
+
+// WatchService 初始化服务列表和监视
+func (s *ServiceDiscovery) WatchService(prefix string, set, del func(key, value string)) error {
+	//根据前缀获取现有的key
+	resp, err := s.cli.Get(*s.ctx, prefix, clientv3.WithPrefix())
+	if err != nil {
+		return err
+	}
+
+	for _, kv := range resp.Kvs {
+		set(string(kv.Key), string(kv.Value))
+	}
+	// 监视前缀，修改变更的 server
+	s.watcher(prefix, resp.Header.Revision+1, set, del)
+	return nil
+}
+
+// WatchServicePrefix 初始化服务列表和监视指定前缀的服务
+func (s *ServiceDiscovery) watcher(prefix string, rev int64, set, del func(key, value string)) {
+	rch := s.cli.Watch(*s.ctx, prefix, clientv3.WithPrefix(), clientv3.WithRev(rev))
+	logger.CtxInfof(*s.ctx, "watching prefix:%s now...", prefix)
+	for wresp := range rch {
+		for _, ev := range wresp.Events {
+			switch ev.Type {
+			case mvccpb.PUT:
+				set(string(ev.Kv.Key), string(ev.Kv.Value))
+			case mvccpb.DELETE:
+				del(string(ev.Kv.Key), string(ev.Kv.Value))
+			}
+		}
+	}
+}
+
+// Close 关闭服务
+func (s *ServiceDiscovery) Close() error {
+	return s.cli.Close()
+}
