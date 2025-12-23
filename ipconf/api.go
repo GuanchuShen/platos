@@ -26,5 +26,5 @@ func GetIpInfoList(c context.Context, ctx *app.RequestContext) {
 	// Step1：进行ip调度
 	eps := domain.Dispatch(ipConfCtx)
 	// Step2: 根据得分取 top5 返回
-	ipConfCtx.AppCtx.JSON(consts.StatusOK, packRes())
+	ipConfCtx.AppCtx.JSON(consts.StatusOK, packRes(eps))
 }
