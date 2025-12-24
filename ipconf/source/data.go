@@ -4,17 +4,20 @@ import (
 	"context"
 
 	"github.com/bytedance/gopkg/util/logger"
+	"github.com/shenguanchu/platos/common/config"
 	"github.com/shenguanchu/platos/common/discovery"
 )
 
 func Init() {
 	eventChan = make(chan *Event)
 	ctx := context.Background()
+	if config.IsDebug() {
+		// debug 模式下启动模拟服务注册
+		testServiceRegister(&ctx, "8080", "node1")
+		testServiceRegister(&ctx, "8081", "node2")
+		testServiceRegister(&ctx, "8082", "node3")
+	}
 	go DataHandler(&ctx)
-	//if config.IsDebug() {
-	//	ctx := context.Background()
-	//	test
-	//}
 }
 
 // DataHandler 服务发现处理
@@ -41,7 +44,7 @@ func DataHandler(ctx *context.Context) {
 			logger.CtxErrorf(*ctx, "DataHandler.setFunc.err: %s", err.Error())
 		}
 	}
-	err := dis.WatchService("/platos/ip_dispatcher", setFunc, delFunc)
+	err := dis.WatchService(config.GetServicePathForIPConf(), setFunc, delFunc)
 	if err != nil {
 		panic(err)
 	}

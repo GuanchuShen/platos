@@ -6,6 +6,7 @@ import (
 	"github.com/shenguanchu/platos/ipconf/source"
 )
 
+// RunMain 启动 Web 容器
 func RunMain() {
 	//config.Init()
 	source.Init()
